@@ -17,7 +17,7 @@ const ICON_SIZE = 16;
 const MAX_FAV_ICON_SIZE = 32;
 const CATEGORY_ICON_SIZE = 22;
 const APPLICATION_ICON_SIZE = 22;
-const HOVER_ICON_SIZE =48;
+const HOVER_ICON_SIZE = 48;
 
 const USER_DESKTOP_PATH = FileUtils.getUserDesktopDir();
 
@@ -47,13 +47,11 @@ ApplicationContextMenuItem.prototype = {
         switch (this._action) {
         case "add_to_panel":
             let winListApplet = false;
-            try{
+            try {
                 winListApplet = imports.ui.appletManager.applets['WindowListGroup@jake.phy@gmail.com'];
-            }catch (e) {
-            }
-            if (winListApplet)
-                winListApplet.applet.GetAppFavorites().addFavorite(this._appButton.app.get_id());
-            else{
+            } catch (e) {}
+            if (winListApplet) winListApplet.applet.GetAppFavorites().addFavorite(this._appButton.app.get_id());
+            else {
                 let settings = new Gio.Settings({
                     schema: 'org.cinnamon'
                 });
@@ -84,15 +82,14 @@ ApplicationContextMenuItem.prototype = {
         return false;
     },
 
-    _windowListAppletLoaded: function() {
+    _windowListAppletLoaded: function () {
         let enabledApplets = global.settings.get_strv('enabled-applets');
         let appletLoaded;
-        for (let i=0; i<newEnabledApplets.length; i++) {
-            let appletDefinition = newEnabledApplets[i];   
-            let elements = appletDefinition.split(":");   
-            let uuid = elements[3];        
-            if (uuid == 'WindowListGroup@jake.phy@gmail.com')
-                appletLoaded = true; 
+        for (let i = 0; i < newEnabledApplets.length; i++) {
+            let appletDefinition = newEnabledApplets[i];
+            let elements = appletDefinition.split(":");
+            let uuid = elements[3];
+            if (uuid == 'WindowListGroup@jake.phy@gmail.com') appletLoaded = true;
         }
         return appletLoaded;
     }
@@ -256,6 +253,7 @@ function CategoryButton(category) {
 CategoryButton.prototype = {
     _init: function (category) {
         var label;
+        this.dir = category;
         if (category) {
             let icon = category.get_icon();
             if (icon && icon.get_names) this.icon_name = icon.get_names().toString();
@@ -379,23 +377,23 @@ TextBoxItem.prototype = {
         PopupMenu.PopupSubMenuMenuItem.prototype._init.call(this, label);
 
         this.actor.set_style_class_name('menu-category-button');
+        this.actor.add_style_class_name('menu-text-item-button');
         this.removeActor(this.label);
         this.removeActor(this._triangle);
         this._triangle = new St.Label();
 
         this.label = new St.Label({
             text: label,
-            style_class: 'menu-application-button-label'
+            style_class: 'menu-category-button-label'
         });
         this.addActor(this.label);
     },
 
     setActive: function (active) {
-        if (active) { 
+        if (active) {
             this.actor.set_style_class_name('menu-category-button-selected');
             this.hoverIcon._refresh(this.icon);
-        }
-        else this.actor.set_style_class_name('menu-category-button');
+        } else this.actor.set_style_class_name('menu-category-button');
     },
 
     _onButtonReleaseEvent: function (actor, event) {
@@ -410,8 +408,8 @@ TextBoxItem.prototype = {
     }
 };
 
-function AllProgramsItem(label, icon, parent, rightP, leftP) {
-    this._init(label, icon, parent, rightP, leftP);
+function AllProgramsItem(label, icon, parent) {
+    this._init(label, icon, parent);
 }
 
 AllProgramsItem.prototype = {
@@ -425,32 +423,97 @@ AllProgramsItem.prototype = {
         this.removeActor(this.label);
         this.removeActor(this._triangle);
         this._triangle = new St.Label();
-	this.label = new St.Label({text: " " + label});
-	this.icon = new St.Icon({style_class: 'popup-menu-icon', icon_type: St.IconType.FULLCOLOR, icon_name: icon, icon_size: ICON_SIZE });
-	this.addActor(this.icon);
-	this.addActor(this.label);
+        this.label = new St.Label({
+            text: " " + label
+        });
+        this.icon = new St.Icon({
+            style_class: 'popup-menu-icon',
+            icon_type: St.IconType.FULLCOLOR,
+            icon_name: icon,
+            icon_size: ICON_SIZE
+        });
+        this.addActor(this.icon);
+        this.addActor(this.label);
     },
 
-    setActive: function(active){
-        if (active)
-            this.actor.set_style_class_name('menu-category-button-selected');
-        else
-            this.actor.set_style_class_name('menu-category-button');
+    setActive: function (active) {
+        if (active) this.actor.set_style_class_name('menu-category-button-selected');
+        else this.actor.set_style_class_name('menu-category-button');
     },
 
-    _onButtonReleaseEvent: function(actor, event){
-        if (event.get_button()==1){
+    _onButtonReleaseEvent: function (actor, event) {
+        if (event.get_button() == 1) {
             this.activate(event);
         }
     },
 
-    activate: function(event){
+    activate: function (event) {
         if (this.parent.leftPane.get_child() == this.parent.favsBox) {
-            this.parent.leftPane.set_child(this.parent.appsBox, { span: 1 });
+            this.parent.leftPane.set_child(this.parent.appsBox, {
+                span: 1
+            });
             this.label.set_text(" Favorites");
-        }else {
-            this.parent.leftPane.set_child(this.parent.favsBox, { span: 1 });
+            this.parent.rightButtonsBox.actor.hide();
+            this.parent.showTextItems.actor.show();
+            this.parent.showTextItems.hidden = true;
+            this.parent._appletStyles(false);
+
+        } else {
+            this.parent.leftPane.set_child(this.parent.favsBox, {
+                span: 1
+            });
             this.label.set_text(" All Programs");
+            this.parent.rightButtonsBox.actor.show();
+            this.parent.showTextItems.actor.hide();
+            this.parent.showTextItems.hidden = false;
+            this.parent.showTextItems.label.text = ">";
+            this.parent._appletStyles(true);
+        }
+    }
+};
+
+function ShowTextItems(parent, label) {
+    this._init(parent, label);
+}
+
+ShowTextItems.prototype = {
+    __proto__: PopupMenu.PopupSubMenuMenuItem.prototype,
+
+    _init: function (parent, label) {
+        PopupMenu.PopupSubMenuMenuItem.prototype._init.call(this, label);
+
+        this.actor.set_style_class_name('menu-category-button');
+        this.parent = parent;
+        this.removeActor(this.label);
+        this.removeActor(this._triangle);
+        this._triangle = new St.Label();
+        this.label = new St.Label({
+            text: ">"
+        });
+        this.addActor(this.label);
+        this.hidden = true;
+    },
+
+    setActive: function (active) {
+        if (active) this.actor.set_style_class_name('menu-category-button-selected');
+        else this.actor.set_style_class_name('menu-category-button');
+    },
+
+    _onButtonReleaseEvent: function (actor, event) {
+        if (event.get_button() == 1) {
+            this.activate(event);
+        }
+    },
+
+    activate: function (event) {
+        if (this.hidden) {
+            this.parent.rightButtonsBox.actor.show();
+            this.hidden = false;
+            this.label.text = "<";
+        } else {
+            this.parent.rightButtonsBox.actor.hide();
+            this.hidden = true;
+            this.label.text = ">";
         }
     }
 };
@@ -520,8 +583,13 @@ ShutdownMenu.prototype = {
         this.removeActor(this.label);
         this.removeActor(this._triangle);
         this._triangle = new St.Label();
-	    this.icon = new St.Icon({style_class: 'popup-menu-icon', icon_type: St.IconType.FULLCOLOR, icon_name: 'forward', icon_size: ICON_SIZE });
-	    this.addActor(this.icon);
+        this.icon = new St.Icon({
+            style_class: 'popup-menu-icon',
+            icon_type: St.IconType.FULLCOLOR,
+            icon_name: 'forward',
+            icon_size: ICON_SIZE
+        });
+        this.addActor(this.icon);
 
         this.menu = new PopupMenu.PopupSubMenu(this.actor);
         this.menu.actor.remove_style_class_name("popup-sub-menu");
@@ -535,11 +603,10 @@ ShutdownMenu.prototype = {
     },
 
     setActive: function (active) {
-        if (active) { 
+        if (active) {
             this.actor.set_style_class_name('menu-category-button-selected');
             this.hoverIcon._refresh('system-log-out');
-        }
-        else this.actor.set_style_class_name('menu-category-button');
+        } else this.actor.set_style_class_name('menu-category-button');
     },
 
     _onButtonReleaseEvent: function (actor, event) {
@@ -549,5 +616,3 @@ ShutdownMenu.prototype = {
 
     }
 };
-
-

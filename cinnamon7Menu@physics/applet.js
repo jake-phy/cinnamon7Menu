@@ -291,13 +291,13 @@ MyApplet.prototype = {
     },
 
     _appletStyles: function () {
-            this.favsBox.style = "min-height: 450px;min-width: 235px;";
-            let searchEntryWidth = (this.favsBox.get_allocation_box().x2 - this.favsBox.get_allocation_box().x1) - this._searchInactiveIcon.get_theme_node().get_length('icon-size')
-            let scrollBoxHeight = (this.favsBox.get_allocation_box().y2 - this.favsBox.get_allocation_box().y1)-(this.selectedAppBox.get_allocation_box().y2 - this.selectedAppBox.get_allocation_box().y1);    
-
-            this.searchEntry.style = "width:" + searchEntryWidth + "px";
-            this.applicationsScrollBox.style = "width: 235px; height: "+ scrollBoxHeight + "px;";
-            this.categoriesScrollBox.style = "width: 190px; height: " + scrollBoxHeight + "px;";
+        let favsWidth = this.searchBox.get_width() + this.rightButtonsBox.actor.get_width();
+        let showTextItemsWidth = this.showTextItems.actor.get_width();
+        let searchEntryWidth = (this.favsBox.get_allocation_box().x2 - this.favsBox.get_allocation_box().x1) - this._searchInactiveIcon.get_theme_node().get_length('icon-size')
+        let scrollBoxHeight = (this.favsBox.get_allocation_box().y2 - this.favsBox.get_allocation_box().y1)-(this.selectedAppBox.get_allocation_box().y2 - this.selectedAppBox.get_allocation_box().y1);  
+        this.searchEntry.style = "width:" + searchEntryWidth + "px";
+        this.applicationsScrollBox.style = "width: " + ((favsWidth - showTextItemsWidth) * 0.55) + "px;height: " + scrollBoxHeight + "px;";
+        this.categoriesScrollBox.style = "width: " + ((favsWidth - showTextItemsWidth) * 0.45) + "px;height: " + scrollBoxHeight + "px;";
     },
 
     _refreshApps: function () {
@@ -378,7 +378,7 @@ MyApplet.prototype = {
 
     _refreshFavs: function () {
         //Remove all favorites
-    	this.favsBox.get_children().forEach(Lang.bind(this, function (child) {
+        this.favsBox.get_children().forEach(Lang.bind(this, function (child) {
             child.destroy();
         }));
 
@@ -457,9 +457,9 @@ MyApplet.prototype = {
         this.leftPane = new St.Bin();
 
         this.favsBox = new St.BoxLayout({
-            style_class: 'menu-favorites-box',
             vertical: true
         });
+        this.favsBox.style = "height: 0;width: 0;min-height: 452px;min-width: 235px;";
 
         this.appsBox = new St.BoxLayout({
             vertical: true
@@ -480,10 +480,14 @@ MyApplet.prototype = {
 
         this.categoriesApplicationsBox = new Boxes.CategoriesApplicationsBox();
         this.categoriesBox = new St.BoxLayout({
-            style_class: 'menu-categories-box',
             vertical: true
         });
-        this.categoriesScrollBox = new St.ScrollView({x_fill: true, y_fill: false, y_align: St.Align.START, style_class: 'vfade menu-applications-scrollbox'});
+        this.categoriesScrollBox = new St.ScrollView({
+            x_fill: true,
+            y_fill: false,
+            y_align: St.Align.START,
+            style_class: 'vfade menu-applications-scrollbox'
+        });
 
         this.applicationsScrollBox = new St.ScrollView({
             x_fill: true,
@@ -499,7 +503,6 @@ MyApplet.prototype = {
             this.menu.passEvents = false;
         }));
         this.applicationsBox = new St.BoxLayout({
-            style_class: 'menu-applications-box',
             vertical: true
         });
 
@@ -508,11 +511,20 @@ MyApplet.prototype = {
             vertical: false
         });
 
-        this.leftPaneBox = new St.BoxLayout({vertical: true});
+        this.leftPaneBox = new St.BoxLayout({
+            style_class: 'menu-favorites-box',
+            vertical: true
+        });
 
         this.rightButtonsBox = new Boxes.RightButtonsBox(this, this.menu);
 
+        this.separator = new PopupMenu.PopupSeparatorMenuItem();
+        this.separator.actor.set_style("padding: 0em 1em;");
+
         this.appsButton = new Items.AllProgramsItem(_("All Programs"), "forward", this, false);
+
+        this.showTextItems = new Items.ShowTextItems(this, "");
+        this.showTextItems.actor.hide();
 
         this.searchBox = new St.BoxLayout({
             style_class: 'menu-search-box'
@@ -572,9 +584,11 @@ MyApplet.prototype = {
         this.appsBox.add_actor(this.categoriesApplicationsBox.actor);
         this.searchBox.add_actor(this.searchEntry);
         this.leftPaneBox.add_actor(this.leftPane);
+        this.leftPaneBox.add_actor(this.separator.actor);
         this.leftPaneBox.add_actor(this.appsButton.actor);
         this.leftPaneBox.add_actor(this.searchBox);
         this.mainBox.add_actor(this.leftPaneBox);
+        this.mainBox.add_actor(this.showTextItems.actor);
         this.mainBox.add_actor(this.rightButtonsBox.actor);
         section.actor.add_actor(this.mainBox);
     },
@@ -781,7 +795,10 @@ MyApplet.prototype = {
     _doSearch: function () {
         if (this.leftPane.get_child() === this.favsBox && this.menu.isOpen) {
             this.leftPane.set_child(this.appsBox);
+            this.showTextItems.actor.show();
             this.appsButton.label.set_text(' Favorites');
+            this.rightButtonsBox.actor.hide();
+            this._appletStyles();
         }
         this._searchTimeoutId = 0;
         let pattern = this.searchEntryText.get_text().replace(/^\s+/g, '').replace(/\s+$/g, '').toLowerCase();
