@@ -448,27 +448,8 @@ AllProgramsItem.prototype = {
     },
 
     activate: function (event) {
-        if (this.parent.leftPane.get_child() == this.parent.favsBox) {
-            this.parent.leftPane.set_child(this.parent.appsBox, {
-                span: 1
-            });
-            this.label.set_text(" Favorites");
-            this.parent.rightButtonsBox.actor.hide();
-            this.parent.showTextItems.actor.show();
-            this.parent.showTextItems.hidden = true;
-            this.parent._appletStyles(false);
-
-        } else {
-            this.parent.leftPane.set_child(this.parent.favsBox, {
-                span: 1
-            });
-            this.label.set_text(" All Programs");
-            this.parent.rightButtonsBox.actor.show();
-            this.parent.showTextItems.actor.hide();
-            this.parent.showTextItems.hidden = false;
-            this.parent.showTextItems.label.text = ">";
-            this.parent._appletStyles(true);
-        }
+        if (this.parent.leftPane.get_child() == this.parent.favsBox) this.parent.switchPanes("apps");
+        else this.parent.switchPanes("favs");
     }
 };
 
