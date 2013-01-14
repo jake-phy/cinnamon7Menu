@@ -20,6 +20,7 @@ const DND = imports.ui.dnd;
 const Meta = imports.gi.Meta;
 const DocInfo = imports.misc.docInfo;
 
+const Session = new GnomeSession.SessionManager();
 const ICON_SIZE = 16;
 const MAX_FAV_ICON_SIZE = 32;
 const CATEGORY_ICON_SIZE = 22;
@@ -597,14 +598,13 @@ ShutdownContextMenuItem.prototype = {
     _init: function (parentMenu, menu, label, action) {
         this.parentMenu = parentMenu;
         ApplicationContextMenuItem.prototype._init.call(this, menu, label, action);
-        this._session = new GnomeSession.SessionManager();
         this._screenSaverProxy = new ScreenSaver.ScreenSaverProxy();
     },
 
     activate: function (event) {
         switch (this._action) {
         case "logout":
-            this._session.LogoutRemote(0);
+            Session.LogoutRemote(0);
             break;
         case "lock":
             this._screenSaverProxy.LockRemote();
@@ -1597,9 +1597,6 @@ MyApplet.prototype = {
         this.favsBox.style = "min-height: 452px;min-width: 235px;";
 
         this.appsBox = new St.BoxLayout({vertical: true});
-        
-        this._session = new GnomeSession.SessionManager();
-        this._screenSaverProxy = new ScreenSaver.ScreenSaverProxy();            
         
         this.searchBox = new St.BoxLayout({ style_class: 'menu-search-box' });
         this.searchBox.set_style("padding-right: 0px;padding-left: 0px");
