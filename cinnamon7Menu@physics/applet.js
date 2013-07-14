@@ -14,6 +14,7 @@ const Signals = imports.signals;
 const GnomeSession = imports.misc.gnomeSession;
 const ScreenSaver = imports.misc.screenSaver;
 const FileUtils = imports.misc.fileUtils;
+const GLib = imports.gi.GLib;
 const Util = imports.misc.util;
 const Tweener = imports.ui.tweener;
 const DND = imports.ui.dnd;
@@ -29,7 +30,6 @@ const HOVER_ICON_SIZE = 48;
 const MAX_RECENT_FILES = 20;
 
 const USER_DESKTOP_PATH = FileUtils.getUserDesktopDir();
-
 
 let appsys = Cinnamon.AppSystem.get_default();
 
@@ -507,7 +507,10 @@ TextBoxItem.prototype = {
         if (active) {
             this.actor.set_style_class_name('menu-category-button-selected');
             this.hoverIcon._refresh(this.icon);
-        } else this.actor.set_style_class_name('menu-category-button');
+        } else {
+            this.actor.set_style_class_name('menu-category-button');
+            this.hoverIcon._refreshFace();
+        }
     },
 
     _onButtonReleaseEvent: function (actor, event) {
@@ -575,30 +578,61 @@ function HoverIcon() {
 
 HoverIcon.prototype = {
     _init: function () {
+        try {
+        this.face = new Gio.FileIcon({ file: Gio.file_new_for_path(GLib.get_home_dir() + '/.face') });
         this.actor = new St.Bin();
         this.icon = new St.Icon({
             icon_size: HOVER_ICON_SIZE,
             icon_type: St.IconType.FULLCOLOR
         });
         this.actor.cild = this.icon;
-        this._refresh('folder-home');
+        this._refreshFace();
+        //this._refresh('folder-home');
+        } catch(e) {
+           Main.notifyError("Error:",e.message);
+        }
     },
     _refresh: function (icon) {
         this.icon.set_icon_name(icon);
+    },
+    _refreshFace: function () {
+        this.icon.set_gicon(this.face);
     }
 };
 
-function ShutdownContextMenuItem(parentMenu, menu, label, action) {
-    this._init(parentMenu, menu, label, action);
+function ShutdownContextMenuItem(parentMenu, menu, label, action, hoverIcon) {
+    this._init(parentMenu, menu, label, action, hoverIcon);
 }
 
 ShutdownContextMenuItem.prototype = {
     __proto__: ApplicationContextMenuItem.prototype,
 
-    _init: function (parentMenu, menu, label, action) {
+    _init: function (parentMenu, menu, label, action, hoverIcon) {
+        this.hoverIcon = hoverIcon;
         this.parentMenu = parentMenu;
-        ApplicationContextMenuItem.prototype._init.call(this, menu, label, action);
+        ApplicationContextMenuItem.prototype._init.call(this, menu, "    ", action);
+        let actionLabel = new St.Label();
+        actionLabel.set_text(label);
+        this.addActor(actionLabel);
         this._screenSaverProxy = new ScreenSaver.ScreenSaverProxy();
+        this.actor.set_style_class_name('menu-category-button');
+    },
+
+    setActive: function (active) {
+        if (active) {
+            this.actor.set_style_class_name('menu-category-button-selected');
+            switch (this._action) {
+                case "logout":
+                    this.hoverIcon._refresh('system-log-out');
+                    break;
+                case "lock":
+                    this.hoverIcon._refresh('screensaver');
+                    break;
+           } 
+        } else {
+            this.actor.set_style_class_name('menu-category-button');
+            this.hoverIcon._refreshFace();
+        }
     },
 
     activate: function (event) {
@@ -607,7 +641,19 @@ ShutdownContextMenuItem.prototype = {
             Session.LogoutRemote(0);
             break;
         case "lock":
-            this._screenSaverProxy.LockRemote();
+            let screensaver_settings = new Gio.Settings({ schema: "org.cinnamon.screensaver" });                        
+            let screensaver_dialog = Gio.file_new_for_path("/usr/bin/cinnamon-screensaver-command");    
+            if (screensaver_dialog.query_exists(null)) {
+                if (screensaver_settings.get_boolean("ask-for-away-message")) {                                    
+                    Util.spawnCommandLine("cinnamon-screensaver-lock-dialog");
+                }
+                else {
+                    Util.spawnCommandLine("cinnamon-screensaver-command --lock");
+                }
+            }
+            else {                
+                this._screenSaverProxy.LockRemote();
+            }
             break;
         }
         this._appButton.toggle();
@@ -617,14 +663,14 @@ ShutdownContextMenuItem.prototype = {
 
 };
 
-function ShutdownMenu(parent, hoverIcon) {
-    this._init(parent, hoverIcon);
+function ShutdownMenu(parent, hoverIcon, lang) {
+    this._init(parent, hoverIcon, lang);
 }
 
 ShutdownMenu.prototype = {
     __proto__: PopupMenu.PopupSubMenuMenuItem.prototype,
 
-    _init: function (parent, hoverIcon) {
+    _init: function (parent, hoverIcon, lang) {
         let label = '';
         this.hoverIcon = hoverIcon;
         this.parent = parent;
@@ -645,9 +691,9 @@ ShutdownMenu.prototype = {
         this.menu.actor.remove_style_class_name("popup-sub-menu");
 
         let menuItem;
-        menuItem = new ShutdownContextMenuItem(this.parent, this.menu, _("Logout"), "logout");
+        menuItem = new ShutdownContextMenuItem(this.parent, this.menu, _("Logout"), "logout", this.hoverIcon);
         this.menu.addMenuItem(menuItem);
-        menuItem = new ShutdownContextMenuItem(this.parent, this.menu, _("Lock Screen"), "lock");
+        menuItem = new ShutdownContextMenuItem(this.parent, this.menu, _("Lock screen"), "lock", this.hoverIcon);
         this.menu.addMenuItem(menuItem);
 
     },
@@ -656,7 +702,10 @@ ShutdownMenu.prototype = {
         if (active) {
             this.actor.set_style_class_name('menu-category-button-selected');
             this.hoverIcon._refresh('system-log-out');
-        } else this.actor.set_style_class_name('menu-category-button');
+        } else {
+            this.actor.set_style_class_name('menu-category-button');
+            this.hoverIcon._refreshFace();
+        }
     },
 
     _onButtonReleaseEvent: function (actor, event) {
@@ -717,37 +766,86 @@ RightButtonsBox.prototype = {
         this._container.add_actor(this.shutDownItemsBox);
     },
 
+    _getName: function (folderURL) {
+       let strDir = folderURL.split("/");
+       return strDir[strDir.length - 1];
+    },
+
+    _loadRightApp: function () {
+       let appList = new Array();
+       appList["synaptic"] = null;
+       appList["update-manager"] = null;
+       appList["gnome-control-center"] = null;
+       appList["cinnamon-settings"] = null;
+       appList["gnome-terminal"] = null;
+       appList["yelp"] = null;
+       let appsys = Cinnamon.AppSystem.get_default();
+       let allApps = appsys.get_all();
+       for (let key in appList) {
+          for (let i = 0; i < allApps.length; i++) { 
+             if(allApps[i].get_id().toLowerCase() == key.toLowerCase() + ".desktop") {
+                appList[key] = allApps[i].get_name();
+                break;
+             }
+          }
+       }
+       return appList;
+    },
+
     addItems: function () {
         this.hoverIcon = new HoverIcon();
+        this.itemsBox.add_actor(this.hoverIcon.icon);
         this.home = new TextBoxItem(_("Home"), "folder-home", "Util.spawnCommandLine('nemo')", this.menu, this.hoverIcon, false);
-        this.documents = new TextBoxItem(_("Documents"), "folder-documents", "Util.spawnCommandLine('nemo Documents')", this.menu, this.hoverIcon, false);
-        this.pictures = new TextBoxItem(_("Pictures"), "folder-pictures", "Util.spawnCommandLine('nemo Pictures')", this.menu, this.hoverIcon, false);
-        this.music = new TextBoxItem(_("Music"), "folder-music", "Util.spawnCommandLine('nemo Music')", this.menu, this.hoverIcon, false);
-        this.videos = new TextBoxItem(_("Videos"), "folder-videos", "Util.spawnCommandLine('nemo Videos')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.home.actor);
+        let folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS);
+        this.documents = new TextBoxItem(_(this._getName(folder)), "folder-documents", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.documents.actor);
+        folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES);
+        this.pictures = new TextBoxItem(_(this._getName(folder)), "folder-pictures", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.pictures.actor);
+        folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_MUSIC);
+        this.music = new TextBoxItem(_(this._getName(folder)), "folder-music", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.music.actor);
+        folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_VIDEOS);
+        this.videos = new TextBoxItem(_(this._getName(folder)), "folder-videos", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.videos.actor);
+        this.itemsBox.add_actor(new PopupMenu.PopupSeparatorMenuItem().actor);
         this.computer = new TextBoxItem(_("Computer"), "computer", "Util.spawnCommandLine('nemo computer:///')", this.menu, this.hoverIcon, false);
-        this.packageItem = new TextBoxItem(_("Package Manager"), "synaptic", "Util.spawnCommandLine('gksu synaptic')", this.menu, this.hoverIcon, false);
-        this.control = new TextBoxItem(_("Control Center"), "gnome-control-center", "Util.spawnCommandLine('gnome-control-center')", this.menu, this.hoverIcon, false);
-        this.terminal = new TextBoxItem(_("Terminal"), "terminal", "Util.spawnCommandLine('gnome-terminal')", this.menu, this.hoverIcon, false);
-        this.help = new TextBoxItem(_("Help"), "help", "Util.spawnCommandLine('yelp')", this.menu, this.hoverIcon, false);
-        this.shutdown = new TextBoxItem(_("Shutdown"), "system-shutdown", "Session.ShutdownRemote()", this.menu, this.hoverIcon, false);
-        this.shutdownMenu = new ShutdownMenu(this.menu, this.hoverIcon);
+        this.itemsBox.add_actor(this.computer.actor);
+
+        let appList = this._loadRightApp();
+        if(appList["gnome-control-center"]) {
+           this.control = new TextBoxItem(_(appList["gnome-control-center"]), "gnome-control-center", "Util.spawnCommandLine('gnome-control-center')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.control.actor);
+        }
+        if(appList["cinnamon-settings"]) {
+           this.controlCinn = new TextBoxItem(_(appList["cinnamon-settings"]), "gconf-editor", "Util.spawnCommandLine('cinnamon-settings')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.controlCinn.actor);
+        }
+        this.itemsBox.add_actor(new PopupMenu.PopupSeparatorMenuItem().actor);
+        if(appList["synaptic"]) {
+           this.packageItem = new TextBoxItem(_(appList["synaptic"]), "synaptic", "Util.spawnCommandLine('gksu synaptic')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.packageItem.actor);
+        }
+        if(appList["update-manager"]) {
+           this.updateItem = new TextBoxItem(_(appList["update-manager"]), "update-manager", "Util.spawnCommandLine('update-manager')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.updateItem.actor);
+        }
+        if(appList["gnome-terminal"]) {
+           this.terminal = new TextBoxItem(_(appList["gnome-terminal"]), "terminal", "Util.spawnCommandLine('gnome-terminal')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.terminal.actor);
+        }
+        if(appList["yelp"]) {
+           this.help = new TextBoxItem(_(appList["yelp"]), "help", "Util.spawnCommandLine('yelp')", this.menu, this.hoverIcon, false);
+           this.itemsBox.add_actor(this.help.actor);
+        }
+
+        this.shutdown = new TextBoxItem(_("Quit"), "system-shutdown", "Session.ShutdownRemote()", this.menu, this.hoverIcon, false);
+        this.shutdownMenu = new ShutdownMenu(this.menu, this.hoverIcon, this.appsMenuButton.lang);
 
         this.shutdownBox.add_actor(this.shutdown.actor);
         this.shutdownBox.add_actor(this.shutdownMenu.actor);
 
-        this.itemsBox.add_actor(this.hoverIcon.icon);
-        this.itemsBox.add_actor(this.home.actor);
-        this.itemsBox.add_actor(this.pictures.actor);
-        this.itemsBox.add_actor(this.music.actor);
-        this.itemsBox.add_actor(this.videos.actor);
-        this.itemsBox.add_actor(this.documents.actor);
-        this.itemsBox.add_actor(new PopupMenu.PopupSeparatorMenuItem().actor);
-        this.itemsBox.add_actor(this.computer.actor);
-        this.itemsBox.add_actor(this.control.actor);
-        this.itemsBox.add_actor(new PopupMenu.PopupSeparatorMenuItem().actor);
-        this.itemsBox.add_actor(this.packageItem.actor);
-        this.itemsBox.add_actor(this.terminal.actor);
-        this.itemsBox.add_actor(this.help.actor);
         this.shutDownItemsBox.add_actor(this.shutdownBox);
         this.shutDownItemsBox.add_actor(this.shutdownMenu.menu.actor);
     },
@@ -943,7 +1041,7 @@ MyApplet.prototype = {
     _init: function(orientation, panel_height) {        
         Applet.TextIconApplet.prototype._init.call(this, orientation, panel_height);
         
-        try {                    
+        try {                
             this.set_applet_tooltip(_("Menu"));
                                     
             this.menuManager = new PopupMenu.PopupMenuManager(this);
@@ -1932,7 +2030,7 @@ MyApplet.prototype = {
         } else res = applist;
         return res;
     },
-    
+
     _doSearch: function(){
         if (this.leftPane.get_child() == this.favsBox) this.switchPanes("apps");
         let pattern = this.searchEntryText.get_text().replace(/^\s+/g, '').replace(/\s+$/g, '').toLowerCase();
