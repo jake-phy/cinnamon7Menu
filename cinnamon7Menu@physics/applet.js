@@ -824,7 +824,7 @@ RightButtonsBox.prototype = {
         }
         this.itemsBox.add_actor(new PopupMenu.PopupSeparatorMenuItem().actor);
         if(appList["synaptic"]) {
-           this.packageItem = new TextBoxItem(_(appList["synaptic"]), "synaptic", "Util.spawnCommandLine('gksu synaptic')", this.menu, this.hoverIcon, false);
+           this.packageItem = new TextBoxItem(_(appList["synaptic"]), "synaptic", "Util.spawnCommandLine('synaptic-pkexec')", this.menu, this.hoverIcon, false);
            this.itemsBox.add_actor(this.packageItem.actor);
         }
         if(appList["update-manager"]) {
