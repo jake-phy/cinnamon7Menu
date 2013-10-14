@@ -797,7 +797,10 @@ RightButtonsBox.prototype = {
         this.itemsBox.add_actor(this.hoverIcon.icon);
         this.home = new TextBoxItem(_("Home"), "folder-home", "Util.spawnCommandLine('nemo')", this.menu, this.hoverIcon, false);
         this.itemsBox.add_actor(this.home.actor);
-        let folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS);
+        let folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOWNLOAD);
+        this.download = new TextBoxItem(_(this._getName(folder)), "folder-download", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
+        this.itemsBox.add_actor(this.download.actor);
+        folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS);
         this.documents = new TextBoxItem(_(this._getName(folder)), "folder-documents", "Util.spawnCommandLine('nemo "+folder+"')", this.menu, this.hoverIcon, false);
         this.itemsBox.add_actor(this.documents.actor);
         folder = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES);
